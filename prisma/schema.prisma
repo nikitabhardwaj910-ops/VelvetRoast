@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReservationStatus {
+  PendingPayment
+  Confirmed
+  Completed
+  Cancelled
+  NoShow
+  Refunded
+}
+
+enum PaymentStatus {
+  Pending
+  Paid
+  Failed
+  Refunded
+  PartiallyRefunded
+}
+
+enum SeatingType {
+  Indoor
+  Outdoor
+}
+
+model Table {
+  id           String        @id @default(uuid())
+  tableNumber  String        @unique
+  capacity     Int
+  location     SeatingType   @default(Indoor)
+  status       String        @default("Available") // Available, Maintenance
+  reservations Reservation[]
+}
+
+model Reservation {
+  id                String            @id @default(uuid())
+  reservationNumber String            @unique
+  customerName      String
+  email             String
+  phone             String
+  guests            Int
+  seatingType       SeatingType       @default(Indoor)
+  tableId           String?
+  table             Table?            @relation(fields: [tableId], references: [id])
+  reservationDate   String            // YYYY-MM-DD
+  reservationTime   String            // HH:MM (24h format e.g. "19:00")
+  duration          Int               @default(90) // 90 minutes dining
+  occasion          String?
+  specialRequests   String?
+  status            ReservationStatus @default(PendingPayment)
+  depositAmount     Float             @default(250)
+  payments          Payment[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  reservationId   String
+  reservation     Reservation   @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  paymentId       String?       // Razorpay payment ID
+  orderId         String?       // Razorpay order ID
+  customerName    String
+  email           String
+  phone           String
+  amount          Float
+  currency        String        @default("INR")
+  paymentMethod   String?
+  gateway         String        @default("Razorpay")
+  status          PaymentStatus @default(Pending)
+  transactionDate DateTime?
+  refundAmount    Float?        @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model RestaurantConfig {
+  id                      String  @id @default("default")
+  depositType             String  @default("FIXED_PER_TABLE") // FIXED_PER_TABLE | PER_GUEST | DISABLED
+  fixedDepositAmount      Float   @default(250)
+  perGuestDepositAmount   Float   @default(100)
+  gstRate                 Float   @default(18) // 18% GST
+  cancellationNoticeHours Int     @default(24)
+}
